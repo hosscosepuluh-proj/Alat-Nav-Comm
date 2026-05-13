@@ -659,6 +659,9 @@ return;
 
 showLoading();
 
+// ⬇ Tambahan agar animasi minimal 600ms
+const minLoadingTime = new Promise(resolve => setTimeout(resolve, 600));
+
 try{
 
 const response = await fetch(WEB_APP_URL,{
@@ -672,6 +675,9 @@ kapal:kapal
 });
 
 const result = await response.json();
+
+// Tunggu minimal waktu loading
+await minLoadingTime;
 
 if(result.success){
 alert("✅ Laporan berhasil dihapus");

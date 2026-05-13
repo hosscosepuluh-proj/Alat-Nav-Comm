@@ -268,10 +268,14 @@ table tbody tr:hover{
   height:100%;
   background:rgba(0,0,0,0.55);
   backdrop-filter:blur(3px);
-  display:none;
+  display:flex;
   justify-content:center;
   align-items:center;
   z-index:9999;
+
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.3s ease;
 }
 
 .loading-box{
@@ -550,33 +554,30 @@ reader.onerror = error => reject(error);
 }
 
   function showLoading(){
-  document.getElementById("loadingOverlay").style.display = "flex";
+  const overlay = document.getElementById("loadingOverlay");
+  overlay.style.opacity = "1";
+  overlay.style.pointerEvents = "all";
 }
 
 function hideLoading(){
-  document.getElementById("loadingOverlay").style.display = "none";
+  const overlay = document.getElementById("loadingOverlay");
+  overlay.style.opacity = "0";
+  overlay.style.pointerEvents = "none";
 }
 
 async function simpanLaporan(){
 
 if(!navigator.onLine){
-
 alert("Tidak ada koneksi internet");
-
 return;
-
 }
 
 const tanggal = document.getElementById("tanggal").value;
-
 const kapal = document.getElementById("kapal").value;
 
 if(!tanggal){
-
 alert("Tanggal wajib diisi");
-
 return;
-
 }
 
 showLoading();
@@ -584,74 +585,43 @@ showLoading();
 let laporanData = [];
 
 alatNavigasi.forEach((alat,index)=>{
-
 laporanData.push({
-
 nama: alat.nama,
 merk: alat.merk,
 kondisi: document.getElementById(`status-${index}`).value
-
 });
-
 });
 
 let photos = [];
 
 for(let file of selectedFiles){
-
 const base64 = await toBase64(file);
-
 photos.push({
-
 name:file.name,
 type:file.type,
 base64:base64.split(",")[1]
-
 });
-
 }
 
-const dataKirim = {
-
-tanggal,
-kapal,
-laporan:laporanData,
-photos
-
-};
+const dataKirim = { tanggal, kapal, laporan:laporanData, photos };
 
 try{
 
 const response = await fetch(WEB_APP_URL,{
-
 method:"POST",
-
-headers:{
-"Content-Type":"text/plain;charset=utf-8"
-},
-
+headers:{ "Content-Type":"text/plain;charset=utf-8" },
 mode:"cors",
-
 body:JSON.stringify(dataKirim)
-
 });
 
 const text = await response.text();
-
 let result;
 
 try{
-
 result = JSON.parse(text);
-
 }catch(e){
-
 alert("Response server tidak valid");
-
-hideLoading();
-
 return;
-
 }
 
 if(result.success){
@@ -659,169 +629,127 @@ if(result.success){
 alert("✅ Laporan berhasil dikirim");
 
 selectedFiles = [];
-
 document.getElementById("previewContainer").innerHTML = "";
-
 document.getElementById("fotoInput").value = "";
 
-loadRiwayat();
+await loadRiwayat();
 
 }else{
-
 alert("❌ " + (result.error || "Gagal mengirim"));
-
 }
 
 }catch(error){
 
 console.log(error);
-
 alert("❌ ERROR SERVER");
 
+}finally{
 hideLoading();
-
 }
-hideLoading();
 
-}
+}  // ✅ PENUTUP simpanLaporan()
+
+
 
 async function hapusLaporan(tanggal, kapal){
 
 if(!confirm("Yakin ingin menghapus laporan ini?")){
-  return;
+return;
 }
+
+showLoading();
 
 try{
 
 const response = await fetch(WEB_APP_URL,{
-
 method:"POST",
-
-headers:{
-"Content-Type":"text/plain;charset=utf-8"
-},
-
+headers:{ "Content-Type":"text/plain;charset=utf-8" },
 body:JSON.stringify({
 action:"delete",
 tanggal:tanggal,
 kapal:kapal
 })
-
 });
 
 const result = await response.json();
 
 if(result.success){
-
 alert("✅ Laporan berhasil dihapus");
-loadRiwayat();
-
+await loadRiwayat();
 }else{
-
 alert("❌ Gagal menghapus");
-
 }
 
 }catch(err){
-
 alert("❌ ERROR SERVER");
+}finally{
+hideLoading();
 }
 
 }
 
-window.onload = loadRiwayat;
+
 
 async function loadRiwayat(){
 
 try{
 
 const response = await fetch(WEB_APP_URL);
-
 const data = await response.json();
 
 const container = document.getElementById("laporanContainer");
-
 container.innerHTML = "";
 
 const grouped = {};
 
 data.forEach(item=>{
-
 const key = item.tanggal + "_" + item.kapal;
-
-if(!grouped[key]){
-grouped[key] = [];
-}
-
+if(!grouped[key]) grouped[key] = [];
 grouped[key].push(item);
-
 });
 
 Object.keys(grouped).reverse().forEach(key=>{
 
 const laporan = grouped[key];
-
 let isi = "";
 
 laporan.forEach((item,index)=>{
-
 isi += `
 <tr>
 <td>${index+1}</td>
 <td>${item.namaAlat || "-"}</td>
 <td>${item.merk || "-"}</td>
 <td>${getBadge(item.kondisi || "-")}</td>
-</tr>
-`;
-
+</tr>`;
 });
 
 let fotoHTML = "";
-
 const foto = laporan?.[0]?.foto || "";
 
 if(foto){
-
-const fotoArray = foto.split(" | ");
-
-fotoArray.forEach(link=>{
+foto.split(" | ").forEach(link=>{
 
 let imageUrl = link;
 
 if(link.includes("drive.google.com")){
-
-const match = link.match(/[-\w]{25,}/);
-
+const match = link.match(/[-\\w]{25,}/);
 if(match){
-
 imageUrl = `https://drive.google.com/thumbnail?id=${match[0]}&sz=w1000`;
-
+}
 }
 
-}
-
-fotoHTML += `
-<img src="${imageUrl}">
-`;
-
+fotoHTML += `<img src="${imageUrl}">`;
 });
-
 }
 
 const div = document.createElement("div");
-
 div.classList.add("report-item");
 
 div.innerHTML = `
-
 <h3>🚢 ${laporan?.[0]?.kapal || "-"}</h3>
-
-<p style="margin-bottom:15px;">
-📅 ${laporan?.[0]?.tanggal || "-"}
-</p>
+<p style="margin-bottom:15px;">📅 ${laporan?.[0]?.tanggal || "-"}</p>
 
 <table>
-
 <thead>
 <tr>
 <th>No</th>
@@ -830,11 +758,9 @@ div.innerHTML = `
 <th>Kondisi</th>
 </tr>
 </thead>
-
 <tbody>
 ${isi}
 </tbody>
-
 </table>
 
 <div class="foto-laporan">
@@ -842,12 +768,11 @@ ${fotoHTML}
 </div>
 
 <button 
-  class="btn" 
-  style="margin-top:15px;background:#dc2626"
-  onclick="hapusLaporan('${laporan?.[0]?.tanggal}','${laporan?.[0]?.kapal}')">
-  🗑️ Hapus Laporan
+class="btn" 
+style="margin-top:15px;background:#dc2626"
+onclick="hapusLaporan('${laporan?.[0]?.tanggal}','${laporan?.[0]?.kapal}')">
+🗑️ Hapus Laporan
 </button>
-
 `;
 
 container.appendChild(div);
@@ -855,13 +780,14 @@ container.appendChild(div);
 });
 
 }catch(err){
-
 console.log(err);
-
 }
 
 }
 
+
+
+window.onload = loadRiwayat;
 </script>
 
 <!-- LOADING OVERLAY -->
